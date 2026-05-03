@@ -42,6 +42,10 @@ OBSTACLES = [
 ]
 ROOM_DIM = (10.88, 10.97)
 
+# Status settings used to assess whether enough transmitters are active
+RSSI_LOST_SIGNAL = -95
+MIN_ACTIVE_TRANSMITTERS = 3
+
 # ==========================================
 #  2. CLASSES (Filter & Logger)
 # ==========================================
@@ -122,6 +126,10 @@ def generate_heatmap(measurements):
             
     return xs, ys, grid
 
+def count_active_transmitters(rssi_data):
+    """Count how many transmitters currently have usable RSSI readings."""
+    return sum(1 for value in rssi_data.values() if value > RSSI_LOST_SIGNAL)
+
 # ==========================================
 #  4. MAIN LOOP
 # ==========================================
@@ -161,6 +169,12 @@ def main():
             # Kalman Smoothing
             smoothed = {}
             for t_id, val in raw_data.items():
+                if val > RSSI_LOST_SIGNAL:
+                    smoothed[t_id] = filters[t_id].update(val)
+                else:
+                    smoothed[t_id] = -100
+
+            active_count = count_active_transmitters(raw_data)
                 if val > -95:
                     smoothed[t_id] = filters[t_id].update(val)
                 else:
@@ -195,8 +209,12 @@ def main():
             ax.plot(best_x, best_y, 'rx', markersize=15, markeredgewidth=3)
             
             # UPDATE THE X/Y TEXT INDICATOR
-            ax.text(0.02, 0.95, f"POS: ({best_x:.2f}m, {best_y:.2f}m)", 
-                    transform=ax.transAxes, color="lime", fontsize=14, fontweight='bold', 
+            status_text = f"POS: ({best_x:.2f}m, {best_y:.2f}m) | Active TX: {active_count}/{len(TRANSMITTERS)}"
+            if active_count < MIN_ACTIVE_TRANSMITTERS:
+                status_text += " | LOW SIGNAL CONFIDENCE"
+
+            ax.text(0.02, 0.95, status_text,
+                    transform=ax.transAxes, color="lime", fontsize=14, fontweight='bold',
                     bbox=dict(facecolor='black', alpha=0.7, edgecolor='white'))
 
             ax.set_xlim(0, ROOM_DIM[0]); ax.set_ylim(0, ROOM_DIM[1])
