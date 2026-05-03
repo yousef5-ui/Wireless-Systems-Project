@@ -1,3 +1,13 @@
+"""
+Wireless Systems Project - Positioning and Heatmap Dashboard
+
+This script receives RSSI data from the ESP receiver, smooths the readings
+using Kalman filtering, predicts the likely receiver position using a heatmap
+method, and logs estimated position data for later analysis.
+
+The file is version controlled in GitHub so that changes to the positioning
+method, logging system and visualisation can be documented and tracked.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
@@ -36,13 +46,16 @@ ROOM_DIM = (10.88, 10.97)
 #  2. CLASSES (Filter & Logger)
 # ==========================================
 class KalmanFilter:
+    """Simple Kalman filter used to smooth live RSSI readings."""
     def __init__(self, process_noise=0.05, measurement_noise=5.0, est_error=1.0, initial_value=-60):
+        """Initialise the filter constants and starting RSSI estimate."""
         self.q = process_noise      
         self.r = measurement_noise  
         self.p = est_error          
         self.x = initial_value      
 
     def update(self, measurement):
+        """Update the filtered RSSI estimate using the latest measurement."""
         self.p = self.p + self.q
         k = self.p / (self.p + self.r) 
         self.x = self.x + k * (measurement - self.x)
@@ -50,7 +63,9 @@ class KalmanFilter:
         return self.x
 
 class DataLogger:
+    """CSV logger used to record estimated position and RSSI values."""
     def __init__(self, filename="nav_log.csv"):
+        """Create a new CSV log file and write the column headers."""
         self.filename = filename
         with open(self.filename, mode='w', newline='') as f:
             writer = csv.writer(f)
@@ -58,6 +73,7 @@ class DataLogger:
             writer.writerow(headers)
     
     def log(self, x, y, rssi_data):
+        """Append the latest estimated position and RSSI readings to the log file."""
         with open(self.filename, mode='a', newline='') as f:
             writer = csv.writer(f)
             row = [datetime.datetime.now().strftime("%H:%M:%S"), round(x, 2), round(y, 2)]
@@ -69,6 +85,7 @@ class DataLogger:
 #  3. MATH ENGINE
 # ==========================================
 def line_intersection(p1, p2, p3, p4):
+    """Check whether two line segments intersect."""
     x1, y1 = p1; x2, y2 = p2; x3, y3 = p3; x4, y4 = p4
     denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
     if denom == 0: return False
@@ -77,6 +94,7 @@ def line_intersection(p1, p2, p3, p4):
     return 0 <= ua <= 1 and 0 <= ub <= 1
 
 def predict_rssi(rx_pos, tx_pos, ref_power, n=3.5):
+    """Predict RSSI at a receiver position using distance loss and obstacle loss."""
     dist = np.linalg.norm(np.array(rx_pos) - np.array(tx_pos))
     if dist < 0.1: dist = 0.1
     rssi = ref_power - (10 * n * np.log10(dist))
@@ -86,6 +104,7 @@ def predict_rssi(rx_pos, tx_pos, ref_power, n=3.5):
     return rssi
 
 def generate_heatmap(measurements):
+    """Generate a heatmap by comparing measured RSSI values with predicted values."""
     res = 0.20
     xs = np.arange(0, ROOM_DIM[0], res)
     ys = np.arange(0, ROOM_DIM[1], res)
@@ -107,6 +126,7 @@ def generate_heatmap(measurements):
 #  4. MAIN LOOP
 # ==========================================
 def main():
+    """Run the live positioning dashboard and update the heatmap display."""
     # Setup
     filters = {t_id: KalmanFilter() for t_id in TRANSMITTERS}
     logger = DataLogger()
