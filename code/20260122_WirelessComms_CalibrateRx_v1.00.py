@@ -1,3 +1,13 @@
+"""
+Wireless Systems Project - Receiver Calibration Tool
+
+This script connects to the ESP receiver, configures the transmitter
+frequencies, collects RSSI samples and applies Kalman filtering to produce
+stable reference power values for each transmitter.
+
+The file is version controlled in GitHub so that improvements to the
+calibration process can be documented, reviewed and tracked.
+"""
 import requests
 import time
 import numpy as np
@@ -19,13 +29,16 @@ TRANSMITTERS = {
 #  2. KALMAN FILTER CLASS
 # ==========================================
 class KalmanFilter:
+    """Simple Kalman filter used to smooth RSSI readings during calibration."""
     def __init__(self, process_noise=0.01, measurement_noise=20.0, est_error=1.0, initial_value=-50):
+        """Initialise the filter constants and starting RSSI estimate."""
         self.q = process_noise      
         self.r = measurement_noise  
         self.p = est_error          
         self.x = initial_value      
 
     def update(self, measurement):
+        """Update the RSSI estimate using the latest measurement."""
         self.p = self.p + self.q
         k = self.p / (self.p + self.r)
         self.x = self.x + k * (measurement - self.x)
@@ -36,6 +49,7 @@ class KalmanFilter:
 #  3. HELPER FUNCTIONS
 # ==========================================
 def configure_sensor():
+    """Send transmitter IDs and frequency settings to the ESP receiver."""
     print(f"Connecting to Sensor at {ESP_IP}...")
     payload = {"transmitters": []}
     for t_id, info in TRANSMITTERS.items():
@@ -52,6 +66,7 @@ def configure_sensor():
         exit()
 
 def get_rssi(target_id):
+    """Request the latest RSSI value for a selected transmitter."""
     try:
         r = requests.get(f"{ESP_IP}/data", timeout=0.5)
         data = r.json()
@@ -63,6 +78,7 @@ def get_rssi(target_id):
 #  4. CALIBRATION ROUTINE
 # ==========================================
 def calibrate_transmitter(tx_id):
+    """Collect RSSI samples and calculate a filtered reference power value."""
     freq = TRANSMITTERS[tx_id]['freq']
     print(f"\n\n=== CALIBRATING: {tx_id} ({freq} MHz) ===")
     print(f"1. Place Receiver EXACTLY 1.0m away.")
