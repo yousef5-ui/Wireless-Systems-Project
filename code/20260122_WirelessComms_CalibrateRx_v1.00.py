@@ -25,6 +25,10 @@ TRANSMITTERS = {
     "TX_BR": {"freq": 865.5},
 }
 
+# RSSI readings outside this range are ignored during calibration
+RSSI_MIN_VALID = -65
+RSSI_MAX_VALID = -20
+
 # ==========================================
 #  2. KALMAN FILTER CLASS
 # ==========================================
@@ -74,6 +78,10 @@ def get_rssi(target_id):
     except:
         return None
 
+def is_valid_rssi(value):
+    """Check whether an RSSI reading is within the accepted calibration range."""
+    return value is not None and RSSI_MIN_VALID < value < RSSI_MAX_VALID
+
 # ==========================================
 #  4. CALIBRATION ROUTINE
 # ==========================================
@@ -99,8 +107,8 @@ def calibrate_transmitter(tx_id):
     while len(raw_readings) < samples_target:
         val = get_rssi(tx_id)
         
-        # Valid range check (-20 to -95)
-        if val is not None and val > -65 and val < -20:
+        # Validate RSSI reading before filtering
+        if is_valid_rssi(val):
             
             # 1. Update Kalman Filter
             filtered_val = kf.update(val)
